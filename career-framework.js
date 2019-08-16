@@ -1,6 +1,6 @@
 var fontFaceName = 'Open Sans';
 var email = 'jeremy.burns@news.co.uk'
-var templateFolderId = '1-hkIn2hMWIXWoyEYQNukFb7qguJUGull';
+var templateFolderId = '115Umgt4Mlfey1YwBgtU6Vbgh-c3EUG7u';
 var firstCompetencySheet = 1;
 
 function onOpen() {
@@ -54,9 +54,8 @@ function addRolesToOverviewSheet(roles) {
   }
 }
 
-function getRoleNumber(roles, roleName) {
-  if (!roles.length)
-    roles = getRoles();
+function getRoleNumber(roleName) {
+  var roles = getRoles();
   
   for (var roleNumber = 0; roleNumber < roles.length; roleNumber++) {
     if (roles[roleNumber]  === roleName)
@@ -66,68 +65,74 @@ function getRoleNumber(roles, roleName) {
   return false;
 }
 
-function buildTemplate() {
-  var firstCompetencySheet = this.firstCompetencySheet;
-  var roleName = SpreadsheetApp.getActiveSheet().getActiveCell().getValue();
-  var roles = getRoles();
-  var roleNumber = getRoleNumber(roles, roleName);
-  
-  if (roleNumber === false) {
-    Browser.msgBox('Invalid role', 'Please select a cell that contains a valid role name.', Browser.Buttons.OK);
-    return;
-  }
-  
-  var templateSpreadsheet = createTemplate(roleName);
-  var competencies = getCompetencies(roleNumber, firstCompetencySheet);
-  
-  if (competencies == []) {
-    Browser.msgBox('Template build failed', 'Failed to build template for ' + roleName, Browser.Buttons.OK);
-    return;
-  }
-  
-  fillDetails(templateSpreadsheet, roleName)
-  fillScores(templateSpreadsheet, competencies)
-  var fileId = DriveApp.getFileById(templateSpreadsheet);
-  moveToTemplateFolder(fileId, this.templateFolderId)
-  
-  Browser.msgBox('Template build complete', 'Building template for ' + roleName + ' completed.', Browser.Buttons.OK);
-  
-}
-
 function buildAllTemplates() {
   var roles = getRoles();
   var roleName;
-  var roleNumber;
 
   for (var roleNumber = 0; roleNumber < roles.length; roleNumber++) {
-    var roleName = roles(roleNumber);
-  
-    if (roleNumber === false) {
-      Browser.msgBox('Invalid role', 'Please select a cell that contains a valid role name.', Browser.Buttons.OK);
-      return;
-    }
-    
-    var templateSpreadsheet = createTemplate(roleName);
-    var competencies = getCompetencies(roleNumber);
-    
-    if (competencies == {}) {
+    roleName = roles[roleNumber];
+    if (!build(roleName)) {
       Browser.msgBox('Template build failed', 'Failed to build template for ' + roleName, Browser.Buttons.OK);
       return;
     }
-    
-    fillDetails(templateSpreadsheet, roleName)
-    fillScores(templateSpreadsheet, competencies)
-    var fileId = DriveApp.getFileById(templateSpreadsheet);
-    moveToTemplateFolder(fileId, this.templateFolderId)
   }
   
   Browser.msgBox('Template building complete', 'All templates built.', Browser.Buttons.OK);
   
 }
 
+function buildTemplate() {
+  
+  var roleName = SpreadsheetApp.getActiveSheet().getActiveCell().getValue();
+  
+  if (build(roleName)) {
+    Browser.msgBox('Template build complete', 'Building template for ' + roleName + ' completed.', Browser.Buttons.OK);
+  } else {
+    Browser.msgBox('Template build failed', 'Failed to build template for ' + roleName, Browser.Buttons.OK);
+  }
+  
+}
+
+function build(roleName) {
+  var roleNumber = getRoleNumber(roleName);
+  
+  if (roleNumber === false) {
+    Browser.msgBox('Invalid role', 'Please select a cell that contains a valid role name.', Browser.Buttons.OK);
+    return false;
+  }
+  var templateSpreadsheet = createTemplate(roleName);
+  var firstCompetencySheet = this.firstCompetencySheet;
+  var competencies = getCompetencies(roleNumber, firstCompetencySheet);
+  
+  if (competencies == []) {
+    Browser.msgBox('Template build failed', 'No competencies available for ' + roleName, Browser.Buttons.OK);
+    return false;
+  }
+  
+  fillDetails(templateSpreadsheet, roleName)
+  fillScores(templateSpreadsheet, competencies)
+
+  var fileId;
+  try {
+    fileId = templateSpreadsheet.getId();
+  }
+  catch (err) {
+    Browser.msgBox('Invalid fileid', err, Browser.Buttons.OK);
+  }
+
+  try {
+    moveToTemplateFolder(fileId, this.templateFolderId)
+  }
+  catch (err) {
+    Browser.msgBox('Failed template move', err, Browser.Buttons.OK);
+  }
+
+  return true;
+
+}
+
 function createTemplate(roleName) {
-  var templateSpreadsheet = SpreadsheetApp.create('Engineering Career Framework Template: ' + roleName);
-  // this.templateFileId = templateSpreadsheet.getId();
+  var templateSpreadsheet = SpreadsheetApp.create(roleName);
   templateSpreadsheet.renameActiveSheet('Details');
   templateSpreadsheet.insertSheet('Overview');
   templateSpreadsheet.insertSheet('Scores');
@@ -353,13 +358,31 @@ function protectRangebyEmail(sheet, range, description, email) {
 }
 
 function moveToTemplateFolder(fileID, targetFolderID) {
-  var file = DriveApp.getFileById(fileID);
+  var file
+  try {
+    file = DriveApp.getFileById(fileID);
+  }
+  catch (err) {
+    Browser.msgBox('Error getting file', err, Browser.Buttons.OK);
+  }
   var parents = file.getParents();
 
   while (parents.hasNext()) {
     var parent = parents.next();
-    parent.removeFile(file);
+    try {
+      parent.removeFile(file);
+    }
+    catch (err) {
+      Browser.msgBox('Error getting parents', err, Browser.Buttons.OK);
+    }
+    
   }
 
-  DriveApp.getFolderById(targetFolderID).addFile(file);
+  try {
+    DriveApp.getFolderById(targetFolderID).addFile(file);
+  }
+  catch(err) {
+    Browser.msgBox('Error moving file', err, Browser.Buttons.OK);
+  } 
+  
 }
